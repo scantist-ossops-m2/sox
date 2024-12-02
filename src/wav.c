@@ -125,7 +125,7 @@ static unsigned short  ImaAdpcmReadBlock(sox_format_t * ft)
         /* work with partial blocks.  Specs say it should be null */
         /* padded but I guess this is better than trailing quiet. */
         samplesThisBlock = lsx_ima_samples_in((size_t)0, (size_t)ft->signal.channels, bytesRead, (size_t) 0);
-        if (samplesThisBlock == 0)
+        if (samplesThisBlock == 0 || samplesThisBlock > wav->samplesPerBlock)
         {
             lsx_warn("Premature EOF on .wav input file");
             return 0;
@@ -607,6 +607,11 @@ static int startread(sox_format_t * ft)
         ft->signal.channels = wChannels;
     else
         lsx_report("User options overriding channels read in .wav header");
+
+    if (ft->signal.channels == 0) {
+        lsx_fail_errno(ft, SOX_EHDR, "Channel count is zero");
+        return SOX_EOF;
+    }
 
     if (ft->signal.rate == 0 || ft->signal.rate == dwSamplesPerSecond)
         ft->signal.rate = dwSamplesPerSecond;
@@ -1257,6 +1262,12 @@ static int wavwritehdr(sox_format_t * ft, int second_header)
     int bytespersample; /* (uncompressed) bytes per sample (per channel) */
     long blocksWritten = 0;
     sox_bool isExtensible = sox_false;    /* WAVE_FORMAT_EXTENSIBLE? */
+
+    if (ft->signal.channels > UINT16_MAX) {
+        lsx_fail_errno(ft, SOX_EOF, "Too many channels (%u)",
+                       ft->signal.channels);
+        return SOX_EOF;
+    }
 
     dwSamplesPerSecond = ft->signal.rate;
     wChannels = ft->signal.channels;
