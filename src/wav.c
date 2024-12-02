@@ -1295,6 +1295,12 @@ static int wavwritehdr(ft_t ft, int second_header)
         return SOX_EOF;
     }
 
+    if (ft->signal.channels > UINT16_MAX) {
+        lsx_fail_errno(ft, SOX_EOF, "Too many channels (%u)",
+                       ft->signal.channels);
+        return SOX_EOF;
+    }
+
     dwSamplesPerSecond = ft->signal.rate;
     wChannels = ft->signal.channels;
 
