@@ -608,6 +608,11 @@ static int sox_wavstartread(sox_format_t * ft)
         return SOX_EOF;
     }
 
+    if (ft->signal.channels == 0) {
+        lsx_fail_errno(ft, SOX_EHDR, "Channel count is zero");
+        return SOX_EOF;
+    }
+
     if (ft->signal.rate == 0 || ft->signal.rate == dwSamplesPerSecond)
         ft->signal.rate = dwSamplesPerSecond;
     else
