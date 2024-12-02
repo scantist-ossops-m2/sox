@@ -599,6 +599,16 @@ static int st_wavstartread(ft_t ft)
     else
         st_report("User options overriding channels read in .wav header");
 
+    if (ft->signal.channels == 0) {
+        lsx_fail_errno(ft, SOX_EHDR, "Channel count is zero");
+        return SOX_EOF;
+    }
+
+    if (ft->signal.channels == 0) {
+        lsx_fail_errno(ft, SOX_EHDR, "Channel count is zero");
+        return SOX_EOF;
+    }
+
     if (ft->signal.rate == 0 || ft->signal.rate == dwSamplesPerSecond)
         ft->signal.rate = dwSamplesPerSecond;
     else
@@ -1278,6 +1288,18 @@ static int wavwritehdr(ft_t ft, int second_header)
     int bytespersample; /* (uncompressed) bytes per sample (per channel) */
     long blocksWritten = 0;
     st_bool isExtensible = st_false;    /* WAVE_FORMAT_EXTENSIBLE? */
+
+    if (ft->signal.channels > UINT16_MAX) {
+        lsx_fail_errno(ft, SOX_EOF, "Too many channels (%u)",
+                       ft->signal.channels);
+        return SOX_EOF;
+    }
+
+    if (ft->signal.channels > UINT16_MAX) {
+        lsx_fail_errno(ft, SOX_EOF, "Too many channels (%u)",
+                       ft->signal.channels);
+        return SOX_EOF;
+    }
 
     dwSamplesPerSecond = ft->signal.rate;
     wChannels = ft->signal.channels;
