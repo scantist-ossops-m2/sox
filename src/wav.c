@@ -82,6 +82,7 @@ typedef struct {
     /* following used by *ADPCM wav files */
     unsigned short nCoefs;          /* ADPCM: number of coef sets */
     short         *lsx_ms_adpcm_i_coefs;          /* ADPCM: coef sets           */
+    void          *ms_adpcm_data;   /* Private data of adpcm decoder */
     unsigned char *packet;          /* Temporary buffer for packets */
     short         *samples;         /* interleaved samples buffer */
     short         *samplePtr;       /* Pointer to current sample  */
@@ -125,7 +126,7 @@ static unsigned short  ImaAdpcmReadBlock(sox_format_t * ft)
         /* work with partial blocks.  Specs say it should be null */
         /* padded but I guess this is better than trailing quiet. */
         samplesThisBlock = lsx_ima_samples_in((size_t)0, (size_t)ft->signal.channels, bytesRead, (size_t) 0);
-        if (samplesThisBlock == 0)
+        if (samplesThisBlock == 0 || samplesThisBlock > wav->samplesPerBlock)
         {
             lsx_warn("Premature EOF on .wav input file");
             return 0;
@@ -173,7 +174,7 @@ static unsigned short  AdpcmReadBlock(sox_format_t * ft)
         }
     }
 
-    errmsg = lsx_ms_adpcm_block_expand_i(ft->signal.channels, wav->nCoefs, wav->lsx_ms_adpcm_i_coefs, wav->packet, wav->samples, samplesThisBlock);
+    errmsg = lsx_ms_adpcm_block_expand_i(wav->ms_adpcm_data, ft->signal.channels, wav->nCoefs, wav->lsx_ms_adpcm_i_coefs, wav->packet, wav->samples, samplesThisBlock);
 
     if (errmsg)
         lsx_warn("%s", errmsg);
@@ -613,6 +614,11 @@ static int startread(sox_format_t * ft)
     else
         lsx_report("User options overriding channels read in .wav header");
 
+    if (ft->signal.channels == 0) {
+        lsx_fail_errno(ft, SOX_EHDR, "Channel count is zero");
+        return SOX_EOF;
+    }
+
     if (ft->signal.rate == 0 || ft->signal.rate == dwSamplesPerSecond)
         ft->signal.rate = dwSamplesPerSecond;
     else
@@ -687,6 +693,7 @@ static int startread(sox_format_t * ft)
 
         /* nCoefs, lsx_ms_adpcm_i_coefs used by adpcm.c */
         wav->lsx_ms_adpcm_i_coefs = lsx_malloc(wav->nCoefs * 2 * sizeof(short));
+        wav->ms_adpcm_data = lsx_ms_adpcm_alloc(wChannels);
         {
             int i, errct=0;
             for (i=0; len>=2 && i < 2*wav->nCoefs; i++) {
@@ -1102,6 +1109,7 @@ static int stopread(sox_format_t * ft)
     free(wav->packet);
     free(wav->samples);
     free(wav->lsx_ms_adpcm_i_coefs);
+    free(wav->ms_adpcm_data);
     free(wav->comment);
     wav->comment = NULL;
 
@@ -1262,6 +1270,12 @@ static int wavwritehdr(sox_format_t * ft, int second_header)
     int bytespersample; /* (uncompressed) bytes per sample (per channel) */
     long blocksWritten = 0;
     sox_bool isExtensible = sox_false;    /* WAVE_FORMAT_EXTENSIBLE? */
+
+    if (ft->signal.channels > UINT16_MAX) {
+        lsx_fail_errno(ft, SOX_EOF, "Too many channels (%u)",
+                       ft->signal.channels);
+        return SOX_EOF;
+    }
 
     dwSamplesPerSecond = ft->signal.rate;
     wChannels = ft->signal.channels;
